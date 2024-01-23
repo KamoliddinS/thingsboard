@@ -10,6 +10,12 @@ THINGSBOARD_PORT = os.getenv('THINGSBOARD_PORT', 1883)
 
 logging.basicConfig(level=logging.DEBUG)
 
+#log credentials
+logging.info( ACCESS_TOKEN)
+logging.info( THINGSBOARD_SERVER)
+logging.info( THINGSBOARD_PORT)
+
+
 client = None
 
 # default blinking period
