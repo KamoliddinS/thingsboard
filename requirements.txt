@@ -1,1 +1,2 @@
 tb-mqtt-client
+mmh3
