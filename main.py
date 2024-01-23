@@ -4,9 +4,9 @@ import os
 
 from tb_gateway_mqtt import TBDeviceMqttClient
 
-ACCESS_TOKEN = "TBRHy3jdRsDIJWoRRJmR"
-THINGSBOARD_SERVER = 'tb.cradle-vision.com'
-THINGSBOARD_PORT = 1883
+ACCESS_TOKEN = os.getenv('THINGSBOARD_TOKEN')
+THINGSBOARD_SERVER = os.getenv('THINGSBOARD_SERVER', 'tb.cradle-vision.com')
+THINGSBOARD_PORT = os.getenv('THINGSBOARD_PORT', 1883)
 
 logging.basicConfig(level=logging.DEBUG)
 
