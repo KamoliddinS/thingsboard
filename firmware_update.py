@@ -61,12 +61,12 @@ def collect_required_data():
     print("\n\n", "="*80, sep="")
     print(" "*20, "ThingsBoard getting firmware example script.", sep="")
     print("="*80, "\n\n", sep="")
-    host = 'tb.cradle-vision.com'
-    config["host"] = host if host else "tb.cradle-vision.com"
-    host = 1883
-    config["port"] = host if host else 1883
-    token = "TBRHy3jdRsDIJWoRRJmD"
-    config["token"] = token
+    # host = "tb.cradle-vision.com"
+    config["host"] = device_credential.thingsboard_url
+    # host = 1883
+    config["port"] = device_credential.thingsboard_port
+    # token = "TBRHy3jdRsDIJWoRRJmD"
+    config["token"] = device_credential.thingsboard_access_token
     chunk_size =65735
     config["chunk_size"] = int(chunk_size) if chunk_size else 0
     print("\n", "="*80, "\n", sep="")
