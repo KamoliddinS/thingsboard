@@ -2,4 +2,6 @@ tb-mqtt-client
 .idea
 .firmware
 *.db
+*.env
+firmware
 

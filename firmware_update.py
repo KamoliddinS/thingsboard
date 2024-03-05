@@ -13,6 +13,7 @@ from tarfile import TarFile
 from lzma import LZMAFile
 from os import remove, path, mkdir, chmod
 import os
+from utils import get_data
 
 from database.db_firmware import create as create_firmware, get_all as get_all_firmware, get_by_id as get_firmware_by_id
 from database.db_update import create as create_update, get_all as get_all_update, get_by_id as get_update_by_id
@@ -28,6 +29,20 @@ models.Base.metadata.create_all(bind=engine)
 latest_firmware = get_all_firmware(client)
 
 device_credential = get_only_one(client)
+
+if device_credential is not None:
+    print(device_credential.device_id)
+
+    print(device_credential.device_mac_address)
+    print(device_credential.device_serial_number)
+    print(device_credential.server_url)
+    print(device_credential.server_username)
+    print(device_credential.server_password)
+    print(device_credential.thingsboard_url)
+    print(device_credential.thingsboard_port)
+    print(device_credential.thingsboard_access_token)
+
+print(device_credential)
 
 
 FW_CHECKSUM_ATTR = "fw_checksum"
@@ -131,11 +146,13 @@ class FirmwareClient(Client):
         self.subscribe("v1/devices/me/attributes")
         self.subscribe("v2/fw/response/+")
         self.subscribe("v2/sf/response/+")
+        self.subscribe("v1/devices/me/rpc/request/+")
         self.send_telemetry(self.current_firmware_info)
         self.request_firmware_info()
 
     def __on_message(self, client, userdata, msg):
         update_response_pattern = "v2/fw/response/" + str(self.__firmware_request_id) + "/chunk/"
+        print(f"Received message from {msg.topic}: {msg.payload}")
         if msg.topic.startswith("v1/devices/me/attributes"):
             print("Firmware info received!")
             self.firmware_info = loads(msg.payload)
@@ -155,22 +172,38 @@ class FirmwareClient(Client):
                 self.__target_firmware_length = self.firmware_info[FW_SIZE_ATTR]
                 self.__chunk_count = 0 if not self.__chunk_size else ceil(self.firmware_info[FW_SIZE_ATTR]/self.__chunk_size)
                 self.get_firmware()
-        # elif msg.topic.startswith(update_response_pattern):
-        #     firmware_data = msg.payload
-        #
-        #     self.firmware_data = self.firmware_data + firmware_data
-        #     self.__current_chunk = self.__current_chunk + 1
-        #
-        #     print(f'Getting chunk with number: {self.__current_chunk}. Chunk size is : {self.__chunk_size} byte(s).')
-        #
-        #     if len(self.firmware_data) == self.__target_firmware_length:
-        #         self.process_firmware()
-        #     else:
-        #         self.get_firmware()
+                print(self.current_firmware_info)
+        elif msg.topic.startswith(update_response_pattern):
+            firmware_data = msg.payload
+
+            self.firmware_data = self.firmware_data + firmware_data
+            self.__current_chunk = self.__current_chunk + 1
+
+            print(f'Getting chunk with number: {self.__current_chunk}. Chunk size is : {self.__chunk_size} byte(s).')
+
+            if len(self.firmware_data) == self.__target_firmware_length:
+                self.process_firmware()
+
+            else:
+                self.get_firmware()
+
+
+        # dev line
+
+        # rpc request
+        elif msg.topic.startswith("v1/devices/me/rpc/request/"):
+            print("RPC request received!")
+            rpc_request = loads(msg.payload)
+            if rpc_request.get("method") == "getTelemetry":
+                print("Sending telemetry..")
+                attributes, telemetry = get_data()
+                self.send_attributes(attributes)
+                self.send_telemetry(telemetry)
 
     def process_firmware(self):
         self.current_firmware_info[FW_STATE_ATTR] = "DOWNLOADED"
         self.send_telemetry(self.current_firmware_info)
+        print(self.current_firmware_info)
         sleep(1)
 
         verification_result = verify_checksum(self.firmware_data, self.firmware_info.get(FW_CHECKSUM_ALG_ATTR), self.firmware_info.get(FW_CHECKSUM_ATTR))
@@ -188,6 +221,7 @@ class FirmwareClient(Client):
             return
         self.firmware_received = True
 
+
     def get_firmware(self):
         payload = '' if not self.__chunk_size or self.__chunk_size > self.firmware_info.get(FW_SIZE_ATTR, 0) else str(self.__chunk_size).encode()
         self.publish(f"v2/fw/request/{self.__firmware_request_id}/chunk/{self.__current_chunk}", payload=payload, qos=1)
@@ -195,6 +229,8 @@ class FirmwareClient(Client):
     def send_telemetry(self, telemetry):
         return self.publish("v1/devices/me/telemetry", dumps(telemetry), qos=1)
 
+    def send_attributes(self, attributes):
+        return self.publish("v1/devices/me/attributes", dumps(attributes), qos=1)
     def request_firmware_info(self):
         print("Requesting firmware info..")
         self.__request_id = self.__request_id + 1
@@ -233,8 +269,8 @@ class FirmwareClient(Client):
                     for i in range(len(firmware_list) - 2):
                         remove(f"{path_to_save}/{firmware_list[i]}")
 
-
-                upgrade_firmware(self.current_firmware_info["current_" + FW_VERSION_ATTR], self.firmware_info.get(FW_VERSION_ATTR))
+                path_to_firmware = f"{path_to_save}/{self.firmware_info.get(FW_TITLE_ATTR)}_{self.firmware_info.get(FW_VERSION_ATTR)}"
+                upgrade_firmware(self.current_firmware_info["current_" + FW_VERSION_ATTR], self.firmware_info.get(FW_VERSION_ATTR), path_to_firmware)
 
                 self.current_firmware_info = {
                     "current_" + FW_TITLE_ATTR: self.firmware_info.get(FW_TITLE_ATTR),
