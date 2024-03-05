@@ -64,7 +64,7 @@ def collect_required_data():
     # host = "tb.cradle-vision.com"
     config["host"] = device_credential.thingsboard_url
     # host = 1883
-    config["port"] = device_credential.thingsboard_port
+    config["port"] = int(device_credential.thingsboard_port)
     # token = "TBRHy3jdRsDIJWoRRJmD"
     config["token"] = device_credential.thingsboard_access_token
     chunk_size =65735
