@@ -68,7 +68,7 @@ def upgrade_firmware(firmware_from, firmware_to, path_to_firmware):
 
 
 
-    old_firmware =db_firmware.get_by_version(db, firmware_from['version'])
+    old_firmware =db_firmware.get_by_version(db, firmware_from.version)
 
     new_firmware = None
     if old_firmware is None:
