@@ -54,7 +54,7 @@ if latest_firmware is not None:
 
 if latest_firmware is None:
     print("No active firmware")
-    latest_firmware= {}
+    latest_firmware = models.Firmware()
     latest_firmware.title = "payload"
     latest_firmware.version = "1"
     print(latest_firmware)
