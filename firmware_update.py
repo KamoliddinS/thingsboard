@@ -15,7 +15,7 @@ from os import remove, path, mkdir, chmod
 import os
 from utils import get_data
 
-from database.db_firmware import create as create_firmware, get_all as get_all_firmware, get_by_id as get_firmware_by_id
+from database.db_firmware import get_active, get_latest
 from database.db_update import create as create_update, get_all as get_all_update, get_by_id as get_update_by_id
 from database.db_credential import create as create_credential, get_only_one
 from database import models
@@ -26,7 +26,7 @@ client = get_db().__next__()
 models.Base.metadata.create_all(bind=engine)
 
 
-latest_firmware = get_all_firmware(client)
+latest_firmware = get_active(client)
 
 device_credential = get_only_one(client)
 
@@ -44,6 +44,20 @@ if device_credential is not None:
 
 print(device_credential)
 
+if latest_firmware is not None:
+    print(latest_firmware.title)
+    print(latest_firmware.version)
+    print(latest_firmware.is_active)
+    print(latest_firmware.path)
+    print(latest_firmware.created_at)
+    print(latest_firmware.updated_at)
+
+if latest_firmware is None:
+    print("No active firmware")
+    latest_firmware= {}
+    latest_firmware.title = "payload"
+    latest_firmware.version = "1"
+    print(latest_firmware)
 
 FW_CHECKSUM_ATTR = "fw_checksum"
 FW_CHECKSUM_ALG_ATTR = "fw_checksum_algorithm"
@@ -107,11 +121,7 @@ def verify_checksum(firmware_data, checksum_alg, checksum):
         checksum_of_received_firmware = "".join(reversed([reversed_checksum[i:i+2] for i in range(0, len(reversed_checksum), 2)])).lower()
     else:
         print("Client error. Unsupported checksum algorithm.")
-    print(checksum_of_received_firmware)
-    random_value = randint(0, 5)
-    # if random_value > 3:
-    #     print("Dummy fail! Do not panic, just restart and try again the chance of this fail is ~20%")
-    #     return False
+
     return checksum_of_received_firmware == checksum
 
 
@@ -128,8 +138,8 @@ class FirmwareClient(Client):
         self.__firmware_request_id = 0
 
         self.current_firmware_info = {
-            "current_" + FW_TITLE_ATTR: "Initial",
-            "current_" + FW_VERSION_ATTR: "v0"
+            "current_" + FW_TITLE_ATTR: latest_firmware.title,
+            "current_" + FW_VERSION_ATTR: latest_firmware.version,
             }
         self.firmware_data = b''
         self.__target_firmware_length = 0
@@ -152,10 +162,14 @@ class FirmwareClient(Client):
 
     def __on_message(self, client, userdata, msg):
         update_response_pattern = "v2/fw/response/" + str(self.__firmware_request_id) + "/chunk/"
-        print(f"Received message from {msg.topic}: {msg.payload}")
+        print(f"Received message from {msg.topic}")
         if msg.topic.startswith("v1/devices/me/attributes"):
             print("Firmware info received!")
+
             self.firmware_info = loads(msg.payload)
+            # print(f'Firmware info: {self.firmware_info}')
+            #Firmware info: {'shared': {'fw_checksum': '73d0a58fc1100effd38329ec49334cf1acd7423c64cab0254f92e34260211e31', 'fw_size': 71728776, 'fw_title': 'payload', 'fw_checksum_algorithm': 'SHA256', 'fw_version': '3'}}
+
             if "/response/" in msg.topic:
                 self.firmware_info = self.firmware_info.get("shared", {}) if isinstance(self.firmware_info, dict) else {}
             if (self.firmware_info.get(FW_VERSION_ATTR) is not None and self.firmware_info.get(FW_VERSION_ATTR) != self.current_firmware_info.get("current_" + FW_VERSION_ATTR)) or \
@@ -192,10 +206,8 @@ class FirmwareClient(Client):
 
         # rpc request
         elif msg.topic.startswith("v1/devices/me/rpc/request/"):
-            print("RPC request received!")
             rpc_request = loads(msg.payload)
             if rpc_request.get("method") == "getTelemetry":
-                print("Sending telemetry..")
                 attributes, telemetry = get_data()
                 self.send_attributes(attributes)
                 self.send_telemetry(telemetry)
@@ -274,8 +286,13 @@ class FirmwareClient(Client):
                     print(e)
 
                 path_to_firmware = f"{path_to_save}/{self.firmware_info.get(FW_TITLE_ATTR)}_{self.firmware_info.get(FW_VERSION_ATTR)}"
-                upgrade_firmware(self.current_firmware_info["current_" + FW_VERSION_ATTR], self.firmware_info.get(FW_VERSION_ATTR), path_to_firmware)
 
+                print(latest_firmware)
+                print(self.firmware_info)
+                try:
+                    upgrade_firmware(latest_firmware, self.firmware_info, path_to_firmware)
+                except Exception as e:
+                    print(f"Error: {e}")
                 self.current_firmware_info = {
                     "current_" + FW_TITLE_ATTR: self.firmware_info.get(FW_TITLE_ATTR),
                     "current_" + FW_VERSION_ATTR: self.firmware_info.get(FW_VERSION_ATTR),
@@ -283,6 +300,7 @@ class FirmwareClient(Client):
                 }
                 self.send_telemetry(self.current_firmware_info)
                 self.firmware_received = False
+                print(self.current_firmware_info)
                 sleep(1)
 
 

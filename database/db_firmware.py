@@ -7,7 +7,7 @@ def create(db: Session, firmware):
     new_firmware = Firmware(
         title = firmware.title,
         version = firmware.version,
-        is_active = False,
+        is_active = firmware.is_active,
         path = firmware.path,
         created_at = datetime.datetime.now(),
         updated_at = datetime.datetime.now()
@@ -31,11 +31,13 @@ def update(db: Session, firmware):
 def get_all(db: Session):
     return db.query(Firmware).all()
 
+def get_latest(db: Session):
+    return db.query(Firmware).order_by(Firmware.created_at.desc()).first()
+
+def get_active(db: Session):
+    return db.query(Firmware).filter(Firmware.is_active == True).first()
 def get_by_id(db: Session, id: int):
     return db.query(Firmware).filter(Firmware.id == id).first()
 
-def get_by_version(db: Session):
-    return db.query(Firmware).filter(Firmware.is_active == True).first()
-
-
-
+def get_by_version(db: Session, version: str):
+    return db.query(Firmware).filter(Firmware.version == version).first()

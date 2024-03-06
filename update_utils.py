@@ -18,19 +18,19 @@ import os
 
 db = next(get_db())
 
+#firmware_from {'title': 'payload', 'version': '1'}
+#firmware_to {'fw_checksum': '73d0a58fc1100effd38329ec49334cf1acd7423c64cab0254f92e34260211e31', 'fw_size': 71728776, 'fw_title': 'payload', 'fw_checksum_algorithm': 'SHA256', 'fw_version': '3'}
 
-def upgrade_firmware(version_from, version_to, path_to_firmware):
+
+def upgrade_firmware(firmware_from, firmware_to, path_to_firmware):
 
     #enable sudo
     os.system("sudo -i")
 
-
     # get list of all deepstream apps
     deepstream_apps = os.listdir( path_to_firmware + "/deepstream-apps")
-    print(deepstream_apps)
     # current deepstream apps
     current_deepstream_apps = os.listdir("/opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/")
-    print(current_deepstream_apps)
 
     #remove the old deepstream apps
     # for app in current_deepstream_apps:
@@ -48,7 +48,7 @@ def upgrade_firmware(version_from, version_to, path_to_firmware):
     if os.path.exists("/srv/https_server_service_orch"):
         os.system("sudo rm -r /srv/https_server_service_orch")
         print("removed old https_server_service_orch")
-    os.system("cp -r " + path_to_firmware + "/https_server_service_orch /srv/")
+    os.system("sudo cp -r " + path_to_firmware + "/https_server_service_orch /srv/")
 
 
 
@@ -68,15 +68,15 @@ def upgrade_firmware(version_from, version_to, path_to_firmware):
 
 
 
-    old_firmware =db_firmware.get_by_version(db)
+    old_firmware =db_firmware.get_by_version(db, firmware_from['version'])
 
     new_firmware = None
     if old_firmware is None:
         new_firmware = Firmware(
-            title = "Firmware " + version_to,
-            version = version_to,
+            title = firmware_to['fw_title'],
+            version = firmware_to['fw_version'],
             is_active = True,
-            path = "firmware/" + version_to + ".bin",
+            path = "firmware/" + firmware_to['fw_version'] + ".bin",
             created_at = datetime.datetime.now(),
             updated_at = datetime.datetime.now()
         )
@@ -85,10 +85,10 @@ def upgrade_firmware(version_from, version_to, path_to_firmware):
         old_firmware.is_active = False
         db_firmware.update(db, old_firmware)
         new_firmware = Firmware(
-            title = "Firmware " + version_to,
-            version = version_to,
+            title = firmware_to['fw_title'],
+            version = firmware_to['fw_version'],
             is_active = True,
-            path = "firmware/" + version_to + ".bin",
+            path = "firmware/" + firmware_to['fw_version'] + ".bin",
             created_at = datetime.datetime.now(),
             updated_at = datetime.datetime.now()
         )
