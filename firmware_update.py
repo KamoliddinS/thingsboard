@@ -264,10 +264,14 @@ class FirmwareClient(Client):
                 firmware_list = os.listdir(f"{path_to_save}")
 
                 #leave only the latest 2 firmware versions
-                if len(firmware_list) > 2:
-                    firmware_list.sort()
-                    for i in range(len(firmware_list) - 2):
-                        remove(f"{path_to_save}/{firmware_list[i]}")
+                # payload_1, payload_2, payload_3
+                try:
+                    if len(firmware_list) > 2:
+                        firmware_list.sort()
+                        for firmware in firmware_list[:-2]:
+                            remove(f"{path_to_save}/{firmware}")
+                except Exception as e:
+                    print(e)
 
                 path_to_firmware = f"{path_to_save}/{self.firmware_info.get(FW_TITLE_ATTR)}_{self.firmware_info.get(FW_VERSION_ATTR)}"
                 upgrade_firmware(self.current_firmware_info["current_" + FW_VERSION_ATTR], self.firmware_info.get(FW_VERSION_ATTR), path_to_firmware)
