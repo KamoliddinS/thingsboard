@@ -47,7 +47,6 @@ def upgrade_firmware(firmware_from, firmware_to, path_to_firmware):
     # remove the old https_server_service_orch
     if os.path.exists("/srv/https_server_service_orch"):
         os.system("sudo rm -r /srv/https_server_service_orch")
-        print("removed old https_server_service_orch")
     os.system("sudo cp -r " + path_to_firmware + "/https_server_service_orch /srv/")
 
 
@@ -56,7 +55,6 @@ def upgrade_firmware(firmware_from, firmware_to, path_to_firmware):
 
     if os.path.exists("/etc/systemd/system/https_server_service_orch.service"):
         os.system("systemctl restart https_server_service_orch")
-        print("already exists")
     else:
 
         os.system(" cp /srv/https_server_service_orch/https_server_service_orch.service /etc/systemd/system/")

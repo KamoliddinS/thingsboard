@@ -2,14 +2,12 @@ import logging.handlers
 import time
 import os
 
+
 # from tb_gateway_mqtt import TBDeviceMqttClient
-
-
 
 
 # callback function that will call when we will change value of our Shared Attribute
 def attribute_callback(result, _):
-    print(result)
     # make sure that you paste YOUR shared attribute name
     period = result.get('blinkingPeriod', 1.0)
 
@@ -17,7 +15,7 @@ def attribute_callback(result, _):
 # callback function that will call when we will send RPC
 def rpc_callback(id, request_body):
     # request body contains method and other parameters
-    print(request_body)
+    logging.info('Received RPC: %s', request_body)
     method = request_body.get('method')
     if method == 'getTelemetry':
         attributes, telemetry = get_data()
@@ -25,7 +23,7 @@ def rpc_callback(id, request_body):
         # client.send_telemetry(telemetry)
         return attributes, telemetry
     else:
-        print('Unknown method: ' + method)
+        logging.error('Received RPC with unknown method: %s', method)
 
 
 def get_data():
@@ -60,7 +58,6 @@ def get_data():
         'boot_time': boot_time,
         'avg_load': avg_load
     }
-    print(attributes, telemetry)
     return attributes, telemetry
 
 
@@ -68,10 +65,9 @@ def get_data():
 def sync_state(result, exception=None):
     global period
     if exception is not None:
-        print("Exception: " + str(exception))
+        logging.error('Error while fetching shared attributes: %s', exception)
     else:
         period = result.get('shared', {'blinkingPeriod': 1.0})['blinkingPeriod']
-
 
 # def main():
 #     global client
@@ -91,5 +87,3 @@ def sync_state(result, exception=None):
 #         client.send_attributes(attributes)
 #         client.send_telemetry(telemetry)
 #         time.sleep(60)
-
-

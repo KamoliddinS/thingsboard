@@ -14,13 +14,27 @@ from lzma import LZMAFile
 from os import remove, path, mkdir, chmod
 import os
 from utils import get_data
-
+import logging
 from database.db_firmware import get_active, get_latest
 from database.db_update import create as create_update, get_all as get_all_update, get_by_id as get_update_by_id
 from database.db_credential import create as create_credential, get_only_one
 from database import models
 from database.database import SessionLocal, engine
 from database.database import get_db
+
+#set up logging
+logging.basicConfig(level=logging.INFO)
+
+# file logger
+file_handler = logging.FileHandler("/var/log/thingsboard_manager.log")
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+
+logger = logging.getLogger(__name__)
+logger.addHandler(file_handler)
+
+
+
 
 client = get_db().__next__()
 models.Base.metadata.create_all(bind=engine)
@@ -31,40 +45,26 @@ latest_firmware = get_active(client)
 device_credential = get_only_one(client)
 
 if device_credential is not None:
-    print(device_credential.device_id)
+    dict_device_credential = device_credential.__dict__
+    logger.info(f"Device credential: {dict_device_credential}")
 
-    print(device_credential.device_mac_address)
-    print(device_credential.device_serial_number)
-    print(device_credential.server_url)
-    print(device_credential.server_username)
-    print(device_credential.server_password)
-    print(device_credential.thingsboard_url)
-    print(device_credential.thingsboard_port)
-    print(device_credential.thingsboard_access_token)
-
-print(device_credential)
 
 if latest_firmware is not None:
-    print(latest_firmware.title)
-    print(latest_firmware.version)
-    print(latest_firmware.is_active)
-    print(latest_firmware.path)
-    print(latest_firmware.created_at)
-    print(latest_firmware.updated_at)
+
+    dict_latest_firmware = latest_firmware.__dict__
+    logger.info(f"Latest firmware: {dict_latest_firmware}")
 
 if latest_firmware is None:
-    print("No active firmware")
     latest_firmware = models.Firmware()
     latest_firmware.title = "payload"
     latest_firmware.version = "1"
-    print(latest_firmware)
+
 
 FW_CHECKSUM_ATTR = "fw_checksum"
 FW_CHECKSUM_ALG_ATTR = "fw_checksum_algorithm"
 FW_SIZE_ATTR = "fw_size"
 FW_TITLE_ATTR = "fw_title"
 FW_VERSION_ATTR = "fw_version"
-
 FW_STATE_ATTR = "fw_state"
 
 REQUIRED_SHARED_KEYS = f"{FW_CHECKSUM_ATTR},{FW_CHECKSUM_ALG_ATTR},{FW_SIZE_ATTR},{FW_TITLE_ATTR},{FW_VERSION_ATTR}"
@@ -72,30 +72,23 @@ REQUIRED_SHARED_KEYS = f"{FW_CHECKSUM_ATTR},{FW_CHECKSUM_ALG_ATTR},{FW_SIZE_ATTR
 
 def collect_required_data():
     config = {}
-    print("\n\n", "="*80, sep="")
-    print(" "*20, "ThingsBoard getting firmware example script.", sep="")
-    print("="*80, "\n\n", sep="")
-    # host = "tb.cradle-vision.com"
     config["host"] = device_credential.thingsboard_url
-    # host = 1883
     config["port"] = int(device_credential.thingsboard_port)
-    # token = "TBRHy3jdRsDIJWoRRJmD"
     config["token"] = device_credential.thingsboard_access_token
     chunk_size =65735
     config["chunk_size"] = int(chunk_size) if chunk_size else 0
-    print("\n", "="*80, "\n", sep="")
     return config
 
 
 def verify_checksum(firmware_data, checksum_alg, checksum):
     if firmware_data is None:
-        print("Firmware wasn't received!")
+        logger.error("Firmware data wasn't provided!")
         return False
     if checksum is None:
-        print("Checksum was't provided!")
+        logger.error("Checksum wasn't provided!")
         return False
     checksum_of_received_firmware = None
-    print(f"Checksum algorithm is: {checksum_alg}")
+    logger.info(f"Checksum algorithm: {checksum_alg}")
     if checksum_alg.lower() == "sha256":
         checksum_of_received_firmware = sha256(firmware_data).digest().hex()
     elif checksum_alg.lower() == "sha384":
@@ -120,7 +113,8 @@ def verify_checksum(firmware_data, checksum_alg, checksum):
             reversed_checksum = '0' + reversed_checksum
         checksum_of_received_firmware = "".join(reversed([reversed_checksum[i:i+2] for i in range(0, len(reversed_checksum), 2)])).lower()
     else:
-        print("Client error. Unsupported checksum algorithm.")
+        logger.error(f"Unsupported checksum algorithm: {checksum_alg}")
+        return False
 
     return checksum_of_received_firmware == checksum
 
@@ -151,7 +145,7 @@ class FirmwareClient(Client):
         self.__updating_thread.start()
 
     def __on_connect(self, client, userdata, flags, result_code, *extra_params):
-        print(f"Requesting firmware info from {config['host']}:{config['port']}..")
+        logger.info(f"Connected with result code {result_code}")
         self.subscribe("v1/devices/me/attributes/response/+")
         self.subscribe("v1/devices/me/attributes")
         self.subscribe("v2/fw/response/+")
@@ -162,9 +156,7 @@ class FirmwareClient(Client):
 
     def __on_message(self, client, userdata, msg):
         update_response_pattern = "v2/fw/response/" + str(self.__firmware_request_id) + "/chunk/"
-        print(f"Received message from {msg.topic}")
         if msg.topic.startswith("v1/devices/me/attributes"):
-            print("Firmware info received!")
 
             self.firmware_info = loads(msg.payload)
             # print(f'Firmware info: {self.firmware_info}')
@@ -174,7 +166,7 @@ class FirmwareClient(Client):
                 self.firmware_info = self.firmware_info.get("shared", {}) if isinstance(self.firmware_info, dict) else {}
             if (self.firmware_info.get(FW_VERSION_ATTR) is not None and self.firmware_info.get(FW_VERSION_ATTR) != self.current_firmware_info.get("current_" + FW_VERSION_ATTR)) or \
                     (self.firmware_info.get(FW_TITLE_ATTR) is not None and self.firmware_info.get(FW_TITLE_ATTR) != self.current_firmware_info.get("current_" + FW_TITLE_ATTR)):
-                print("Firmware is not the same")
+                logger.info(f"New firmware info: {self.firmware_info}")
                 self.firmware_data = b''
                 self.__current_chunk = 0
 
@@ -186,23 +178,20 @@ class FirmwareClient(Client):
                 self.__target_firmware_length = self.firmware_info[FW_SIZE_ATTR]
                 self.__chunk_count = 0 if not self.__chunk_size else ceil(self.firmware_info[FW_SIZE_ATTR]/self.__chunk_size)
                 self.get_firmware()
-                print(self.current_firmware_info)
+
         elif msg.topic.startswith(update_response_pattern):
             firmware_data = msg.payload
 
             self.firmware_data = self.firmware_data + firmware_data
             self.__current_chunk = self.__current_chunk + 1
 
-            print(f'Getting chunk with number: {self.__current_chunk}. Chunk size is : {self.__chunk_size} byte(s).')
-
+            logger.info(f'Getting chunk with number: {self.__current_chunk}. Chunk size is : {self.__chunk_size} byte(s).')
             if len(self.firmware_data) == self.__target_firmware_length:
                 self.process_firmware()
 
             else:
                 self.get_firmware()
 
-
-        # dev line
 
         # rpc request
         elif msg.topic.startswith("v1/devices/me/rpc/request/"):
@@ -215,18 +204,18 @@ class FirmwareClient(Client):
     def process_firmware(self):
         self.current_firmware_info[FW_STATE_ATTR] = "DOWNLOADED"
         self.send_telemetry(self.current_firmware_info)
-        print(self.current_firmware_info)
+        logger.info("Firmware downloaded!")
         sleep(1)
 
         verification_result = verify_checksum(self.firmware_data, self.firmware_info.get(FW_CHECKSUM_ALG_ATTR), self.firmware_info.get(FW_CHECKSUM_ATTR))
 
         if verification_result:
-            print("Checksum verified!")
+            logger.info("Checksum verification passed!")
             self.current_firmware_info[FW_STATE_ATTR] = "VERIFIED"
             self.send_telemetry(self.current_firmware_info)
             sleep(1)
         else:
-            print("Checksum verification failed!")
+            logger.error("Checksum verification failed!")
             self.current_firmware_info[FW_STATE_ATTR] = "FAILED"
             self.send_telemetry(self.current_firmware_info)
             self.request_firmware_info()
@@ -244,7 +233,7 @@ class FirmwareClient(Client):
     def send_attributes(self, attributes):
         return self.publish("v1/devices/me/attributes", dumps(attributes), qos=1)
     def request_firmware_info(self):
-        print("Requesting firmware info..")
+        logger.info("Requesting firmware info...")
         self.__request_id = self.__request_id + 1
         self.publish(f"v1/devices/me/attributes/request/{self.__request_id}", dumps({"sharedKeys": REQUIRED_SHARED_KEYS}))
 
@@ -283,16 +272,14 @@ class FirmwareClient(Client):
                         for firmware in firmware_list[:-2]:
                             remove(f"{path_to_save}/{firmware}")
                 except Exception as e:
-                    print(e)
+                    logger.error(f"Error: {e}")
 
                 path_to_firmware = f"{path_to_save}/{self.firmware_info.get(FW_TITLE_ATTR)}_{self.firmware_info.get(FW_VERSION_ATTR)}"
 
-                print(latest_firmware)
-                print(self.firmware_info)
                 try:
                     upgrade_firmware(latest_firmware, self.firmware_info, path_to_firmware)
                 except Exception as e:
-                    print(f"Error: {e}")
+                    logger.error(f"Error: {e}")
                 self.current_firmware_info = {
                     "current_" + FW_TITLE_ATTR: self.firmware_info.get(FW_TITLE_ATTR),
                     "current_" + FW_VERSION_ATTR: self.firmware_info.get(FW_VERSION_ATTR),
@@ -300,7 +287,7 @@ class FirmwareClient(Client):
                 }
                 self.send_telemetry(self.current_firmware_info)
                 self.firmware_received = False
-                print(self.current_firmware_info)
+                logger.info("Firmware updated!")
                 sleep(1)
 
 
