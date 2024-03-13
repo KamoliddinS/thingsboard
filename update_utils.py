@@ -95,7 +95,7 @@ def upgrade_firmware(firmware_from, firmware_to, path_to_firmware):
             created_at = datetime.datetime.now(),
             updated_at = datetime.datetime.now()
         )
-        db_firmware.create(new_firmware)
+        db_firmware.create(db= db, firmware= new_firmware)
 
 
 
