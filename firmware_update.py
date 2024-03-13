@@ -276,7 +276,9 @@ class FirmwareClient(Client):
                     if len(firmware_list) > 2:
                         firmware_list.sort()
                         for firmware in firmware_list[:-2]:
-                            remove(f"{path_to_save}/{firmware}")
+                            logger.info(f"Removing firmware: {firmware}")
+                            os.system(f"rm -r {path_to_save}/{firmware}")
+
                 except Exception as e:
                     logger.error(f"Error: {e}")
 
