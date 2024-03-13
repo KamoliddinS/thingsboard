@@ -1,3 +1,4 @@
 tb-mqtt-client
 mmh3
 sqlalchemy
+Jinja2

@@ -37,15 +37,15 @@ def upgrade_firmware(firmware_from, firmware_to, path_to_firmware):
     #     os.system("rm -r /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/" + app)
 
     # remove the deepstream app
-    os.system(f"rm -r /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/{deepstream_apps[0]}")
+    os.system(f"sudo rm -r /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/{deepstream_apps[0]}")
     # copy the new deepstream apps
     for app in deepstream_apps:
-        os.system("cp -r " + path_to_firmware + "/deepstream-apps/" + app + " /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/")
+        os.system("sudo cp -r " + path_to_firmware + "/deepstream-apps/" + app + " /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/")
 
         # install CUDA_VER=11.4 make all
-        os.system("cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/" + app + " && CUDA_VER=11.4 make all")
+        os.system("sudo cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/" + app + " && CUDA_VER=11.4 make all")
 
-        os.system("cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/ds_sch_people_count/yolov8/nvdsinfer_custom_impl_Yolo" + " && CUDA_VER=11.4 make all")
+        os.system("sudo cd /opt/nvidia/deepstream/deepstream/sources/apps/sample_apps/ds_sch_people_count/yolov8/nvdsinfer_custom_impl_Yolo" + " && CUDA_VER=11.4 make all")
 
 
     # copy https_server_service_orch to /home/srv

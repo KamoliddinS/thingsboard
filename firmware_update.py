@@ -190,6 +190,12 @@ class FirmwareClient(Client):
                 self.process_firmware()
 
             else:
+                # check the size should not exceed the target firmware length
+                if len(self.firmware_data) > self.__target_firmware_length:
+                    logger.error("Firmware data size exceeded the target firmware length!")
+                    self.request_firmware_info()
+                    return
+
                 self.get_firmware()
 
 
